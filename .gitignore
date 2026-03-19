@@ -1,0 +1,17 @@
+# Compiled binaries
+tss
+tss_new
+tss_main
+tss_tests
+tss_tests_new
+tokenizer_tests
+tokenizer_tests_new
+sentence_segmenter_tests
+sentence_segmenter_tests_new
+okenizer_tests
+
+# Object files
+*.o
+
+# macOS
+.DS_Store
