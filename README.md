@@ -1,112 +1,145 @@
-# RULE-BASED TOKENIZER AND SENTNECE SEGMENTER WITH C++ CORE
+# rule-based-tss
 
-## Overview 
-This is a C++ implementation of a text tokenizer and sentnece segmenter that processes natural language text into tokens and groups them into sentnences using a Finite State Machine (FSM) approach.
+Rule-based C++ tokenizer and sentence segmenter.
+Feed it raw text; get back typed tokens grouped into sentences — handling contractions, abbreviations, hyphenation, ellipses, and numbers without any model weights or dependencies.
 
-This project provides a pipeline for text processing:
+```
+Input  →  "Dr. Jones can't visit on Jan. 31st. Amazing!"
 
-1. Tokenizer: converts raw text into structured tokens (words, numbers, punctuation, abbreviations, contractions, etc.)
-2. Sentence Segmenter: Groups tokens into sentneces based on sentence-ending punctuation
+Sentence 1:  [Dr.]  ABBREVIATION  [Jones]  WORD  [can't]  CONTRACTION
+             [visit]  WORD  [on]  WORD  [Jan.]  ABBREVIATION
+             [31]  NUMBER  [st.]  ABBREVIATION  [.]  PUNCT
 
-This system handles complex language phenomena like abbreviations, contractions, hyphenated words, and ellipses. 
+Sentence 2:  [Amazing]  WORD  [!]  PUNCT
+```
 
-### Features 
-#### Tokenizer Features 
-- Identifies words, numbers, and punctuation
-- Handles contractions (e.g. "don't" and "I'll")
-- Processes hyphenated words (e.g. "state-of-the-art")
-- Recognized abbreviations (e.g. "Dr." and "US")
-- Detects ellipses ("...")
-- Uses a finite state machine for robust character-by-character processing
-- Preserves token positino information in original text
+---
 
-#### Sentence Segmenter Features 
-- Identifies sentence boundaries using punctuation (., !, ?)
-- Handles SENTENCE_END token types
-- Properly handles abbreviations that end with periods
-- Groups tokens into sentence vectors
+## How it works
 
-### Project Structure 
-|-- tokenizer.h/.cpp            # Main tokenier class with FSM implementation
-|-- char_classes.h/.cpp         # Character classification utilities
-|-- token.h                     # Token data structure and types
-|-- sentence_segmenter.h/.cpp   # Sentence segmentation logic
-|-- utils.h                     # String utility declarations
-|-- tss_main.cpp                # Main program entry point
-|-- tokenizer_tests.cpp         # Tokenizer test suite
-|-- sentence_segmenter_tests.cpp # Sentence segmenter test suite
+```
+┌───────────────────────────────┐
+│  Raw text  (std::string)      │
+└───────────────┬───────────────┘
+                │  char-by-char
+                ▼
+┌───────────────────────────────────────────────────────────┐
+│  Tokenizer  (FSM)                                         │
+│                                                           │
+│   START ──letter──▶ IN_WORD ──apostrophe──▶ IN_CONTRACTION│
+│     │                  │                                  │
+│     │              hyphen                                 │
+│     │                  ▼                                  │
+│     │           IN_HYPHENATED                             │
+│     │                                                     │
+│     │           IN_WORD ──period (≤3 chars)──▶ IN_ABBREV  │
+│     │                                                     │
+│     ├──digit──▶ IN_NUMBER                                 │
+│     │                                                     │
+│     └──punct/period──▶ IN_PUNCT  (merges '...' ellipsis)  │
+└───────────────────────────────┬───────────────────────────┘
+                                │  std::vector<Token>
+                                ▼
+┌───────────────────────────────────────────────────────────┐
+│  SentenceSegmenter                                        │
+│                                                           │
+│  Walk tokens; push to current sentence;                   │
+│  on PUNCT('.','!','?') or SENTENCE_END → flush sentence   │
+│  Abbreviations (ABBREVIATION type) never split sentences  │
+└───────────────────────────────┬───────────────────────────┘
+                                │  std::vector<std::vector<Token>>
+                                ▼
+                        Labelled sentences
+```
 
-### Token Types 
-WORD                            # Standard words
-NUMBER                          # Numeric sequences
-PUNCT                           # Punctuation Marks
-ABBREVIATION                    # Abbreviations
-CONTRACTION                     # Contractions with apostrophes
-HYPHENATED                      # Hyphenated compound words
-SENTENCE_END                    # Explicit sentence-ending markers
+### Why a finite state machine?
 
-## Building the Project 
-Prerequisities -- C++ compiler with C++11 support (g++ 4.8+ or clang++ 3.3+)
+Character-by-character FSM processing means a single linear pass over the input with O(1) lookahead. There is no backtracking, no regex engine, and no heap allocation per character — just a state variable, a string buffer, and a switch. This makes boundary cases (e.g. `U.S.` vs `dogs.`) explicit and testable rather than buried in regex alternations.
 
-### Compiling Statement
+### Why separate tokenizer and segmenter?
+
+The tokenizer assigns types (`ABBREVIATION`, `CONTRACTION`, etc.) that the segmenter uses to decide whether a period ends a sentence. Keeping the two stages separate means each can be tested independently, and the segmenter can be swapped out without touching tokenization logic.
+
+---
+
+## Token types
+
+| Type | Examples | Notes |
+|---|---|---|
+| `WORD` | `Hello`, `fox`, `31st` | Default alphabetic token |
+| `NUMBER` | `3`, `42` | Pure digit sequences |
+| `PUNCT` | `.`, `!`, `?`, `...` | Punctuation; `.`/`!`/`?` trigger sentence boundaries |
+| `ABBREVIATION` | `Dr.`, `Jan.`, `U.S.` | Word ≤ 3 chars followed by a period; never splits sentences |
+| `CONTRACTION` | `don't`, `I'll`, `can't` | Word + apostrophe + continuation |
+| `HYPHENATED` | `state-of-the-art` | Word segments joined by hyphens |
+| `SENTENCE_END` | — | Explicit marker; can be injected directly into the token stream |
+
+---
+
+## Prerequisites
+
+| Tool | Version |
+|---|---|
+| C++ compiler | C++11 or later (g++ 4.8+, clang++ 3.3+) |
+
+No external libraries. No build system required.
+
+---
+
+## Building
+
+### Main program
+
+```bash
 g++ -std=c++11 -o tss \
     tss_main.cpp \
     tokenizer.cpp \
     char_classes.cpp \
     sentence_segmenter.cpp
+```
 
-Then, type "./tss" an press enter. After doing so, input your message, press enter, and then Ctrl + D to see the program work.
+### Tokenizer test suite
 
-### Test Outline
-#### Build tokenizer tests
+```bash
 g++ -std=c++11 -o tokenizer_tests \
     tokenizer_tests.cpp \
     tokenizer.cpp \
     char_classes.cpp \
     -I.
+```
 
-#### Run tokenizer tests
-./tokenizer_tests
+### Sentence segmenter test suite
 
-#### Expected output
-[PASS] simple sentence
-[PASS] contractions
-[PASS] hyphenation
-[PASS] abbreviations
-[PASS] ellipsis
-
-Tests run: 5
-Tests failed: 0
-
-#### Build sentence segmenter tests
-g++ -std=c++11 -o segmenter_tests \
+```bash
+g++ -std=c++11 -o sentence_segmenter_tests \
     sentence_segmenter_tests.cpp \
     sentence_segmenter.cpp \
     -I.
+```
 
-#### Run sentence segmenter tests
-./sentence_segmenter_tests
+### Integration test suite
 
-#### Expected output
-Running Sentence Segmenter Tests
-===============================
+```bash
+g++ -std=c++11 -o tss_tests \
+    tss_tests.cpp \
+    tokenizer.cpp \
+    char_classes.cpp \
+    -I.
+```
 
-[PASS] basic sentence period: sentence count
-[PASS] basic sentence period: content
-[PASS] sentence exclamation: sentence count
-... (more test results)
+---
 
-Tests run: 11
-Tests failed: 0
+## Usage
 
-### Example walkthrough
-Step 1: Run the program
+Run the program, type (or pipe) input, then press **Ctrl-D** to signal end of input:
+
+```bash
 ./tss
-
-Step 2: Type input
 The quick brown fox jumps over 3 lazy dogs. Amazing!
+^D
+```
 
-Step 3: Press Ctrl + D, you'll see:
+```
 Sentence 1:
  [The] WORD
  [quick] WORD
@@ -122,27 +155,86 @@ Sentence 1:
 Sentence 2:
  [Amazing] WORD
  [!] PUNCT
+```
 
- ## How it works 
- Take the text: "Dr. Jones can't visit on Jan. 31st."
- The program uses step-by-step processing to find the states of each expression, it implicitly looks like something like this:
+Pipe text directly:
 
-    D → r → . = [Dr.] ABBREVIATION
-    J → o → n → e → s = [Jones] WORD
-    c → a → n → ' → t = [can't] CONTRACTION
-    v → i → s → i → t = [visit] WORD
-    o → n = [on] WORD
-    J → a → n → . = [Jan.] ABBREVIATION
-    3 → 1 → s → t = [31st] WORD
+```bash
+echo "Dr. Meeden doesn't like state-of-the-art models. Does she?" | ./tss
+```
 
-So the final output looks like this:
+---
 
-Sentence 1:
- [Dr.] ABBREVIATION
- [Jones] WORD
- [can't] CONTRACTION
- [visit] WORD
- [on] WORD
- [Jan.] ABBREVIATION
- [31st] WORD
- [.] PUNCT
+## Testing
+
+```bash
+./tokenizer_tests
+```
+
+```
+[PASS]simple sentence
+[PASS]contractions
+[PASS]hyphenation
+[PASS]abbreviations
+[PASS]ellipsis
+
+Tests run:5
+Tests failed: 0
+```
+
+```bash
+./sentence_segmenter_tests
+```
+
+```
+Running Sentence Segmenter Tests
+===============================
+
+[PASS] basic sentence period: sentence count
+[PASS] basic sentence period: content
+... (21 tests total)
+
+Tests run: 21
+Tests failed: 0
+```
+
+---
+
+## Project structure
+
+```
+rule-based-tss/
+├── tokenizer.h/.cpp            # FSM tokenizer — core of the pipeline
+├── char_classes.h/.cpp         # Character classification (LETTER, DIGIT, PERIOD, etc.)
+├── token.h                     # Token struct and TokenType enum
+├── sentence_segmenter.h/.cpp   # Sentence boundary detection
+├── utils.h                     # String utility declarations
+├── tss_main.cpp                # CLI entry point (stdin → labelled sentences)
+├── tokenizer_tests.cpp         # Tokenizer unit tests
+├── sentence_segmenter_tests.cpp# Sentence segmenter unit tests
+├── tss_tests.cpp               # Integration tests (tokenizer end-to-end)
+└── test_input.txt              # Sample input file
+```
+
+---
+
+## FSM state reference
+
+| State | Entered when | Exits when |
+|---|---|---|
+| `START` | Initial / after any token is emitted | Any non-whitespace character |
+| `IN_WORD` | Letter seen in `START` | Non-letter (emits `WORD`), or apostrophe / hyphen / short-word period |
+| `IN_NUMBER` | Digit seen in `START` | Non-digit (emits `NUMBER`) |
+| `IN_PUNCT` | Punct or period seen in `START` | Non-punct, non-period (emits `PUNCT`; `...` merges naturally) |
+| `IN_CONTRACTION` | Apostrophe seen in `IN_WORD` | Non-letter (emits `CONTRACTION`) |
+| `IN_HYPHENATED` | Hyphen seen in `IN_WORD` | Non-letter (emits `HYPHENATED`) |
+| `IN_ABBREVIATION` | Period seen in `IN_WORD` with buffer ≤ 3 chars | Non-letter, non-period (emits `ABBREVIATION`) |
+| `POSSIBLE_SENTENCE_END` | Reserved for future lookahead disambiguation | — |
+
+---
+
+## Customisation
+
+- **Abbreviation threshold:** the `buffer_.length() <= 3` check in `tokenizer.cpp` controls what counts as an abbreviation candidate. Raise it to catch longer abbreviations like `Prof.` (4 chars before the period).
+- **Known abbreviations list:** `sentence_segmenter.h` has an `abbreviations` vector stub ready to hold an explicit list for finer-grained sentence boundary control.
+- **Additional token types:** add a new `TokenType` in `token.h`, a matching `State` in `tokenizer.h`, and handle the transition in `process_char`.
