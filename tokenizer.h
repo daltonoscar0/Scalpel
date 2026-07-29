@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <string>
 #include <vector>
 #include "token.h"
@@ -29,7 +30,7 @@ class Tokenizer{
     int token_start_;
 
     //FSM processing functions
-    void process_char(char c, int index, std::vector<Token>& output);
+    void process_char(uint32_t cp, int index, std::vector<Token>& output);
     void emit_token(std::vector<Token>& output, int end_Index, TokenType type);
     void transition_to(State next);
 
