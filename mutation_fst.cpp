@@ -231,7 +231,7 @@ bool inverse_ok_cp(const std::string& tag, const CPs& base, const CPs& surface) 
 }
 
 // ---- arc-based generation transducer (parity engine) -----------------------
-// Mirrors src/mutations.py:build_fst — priority-union semantics: no
+// Mirrors src/mutations.py:build_fst, priority-union semantics: no
 // accepting path => identity. Exists so generation is demonstrably a
 // transducer run, not just string surgery; parity is test-enforced.
 

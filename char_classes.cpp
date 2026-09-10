@@ -28,7 +28,7 @@ CharClass CharClassifier::classify_codepoint(uint32_t cp){
     if (cp < 0x80) return classify_char(static_cast<char>(cp));
     if (utf8::is_letter(cp)) return CharClass::LETTER;
     if (cp == 0x2019) return CharClass::APOSTROPHE;   // ' curly apostrophe
-    if (cp == 0x2013 || cp == 0x2014 ||               // – — dashes
+    if (cp == 0x2013 || cp == 0x2014 ||               // -, dashes
         cp == 0x2018 || cp == 0x201C || cp == 0x201D ||
         cp == 0x2026)                                  // … ellipsis
         return CharClass::PUNCT;

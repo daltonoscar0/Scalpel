@@ -15,3 +15,11 @@ okenizer_tests
 
 # macOS
 .DS_Store
+CLAUDE.md
+AGENTS.md
+.claude/
+.agentnotes/
+.cursor/
+.mcp.json
+tasks/lessons.md
+tasks/todo.md

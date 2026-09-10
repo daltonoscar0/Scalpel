@@ -2,7 +2,7 @@
 // Irish initial-mutation layer for Scalpel: séimhiú (Len), urú (Ecl),
 // h-prefix (HPref), t-prefix (TPref).
 //
-// This is Scalpel's string-rewriting (transducer) layer — the tokenizer's
+// This is Scalpel's string-rewriting (transducer) layer, the tokenizer's
 // FSM is a recognizer, so this module adds the FST machinery rather than
 // composing with pre-existing rules (see ARCHITECTURE.md, revised).
 //
@@ -25,7 +25,7 @@
 
 namespace ga {
 
-// (tag, base); tag in {"Len","Ecl","HPref","TPref"} — or "none" from analyze()
+// (tag, base); tag in {"Len","Ecl","HPref","TPref"}, or "none" from analyze()
 using Analysis = std::pair<std::string, std::string>;
 
 // Generation (caps-aware): tag in {"Len","Ecl","HPref","TPref"}.
@@ -48,7 +48,7 @@ bool inverse_ok(const std::string& tag, const std::string& base,
                 const std::string& surface);
 
 // Generation via the arc-based transducer engine (parity path; must agree
-// with mutate() on every input — enforced in mutation_tests.cpp).
+// with mutate() on every input, enforced in mutation_tests.cpp).
 std::string fst_mutate(const std::string& tag, const std::string& word);
 
 }  // namespace ga
