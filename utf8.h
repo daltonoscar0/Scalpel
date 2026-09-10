@@ -70,14 +70,14 @@ inline std::string from_codepoints(const std::vector<uint32_t>& cps) {
 
 inline bool is_upper(uint32_t cp) {
     if (cp >= 'A' && cp <= 'Z') return true;
-    if (cp >= 0xC0 && cp <= 0xDE && cp != 0xD7) return true;          // À–Þ \ ×
+    if (cp >= 0xC0 && cp <= 0xDE && cp != 0xD7) return true;          // À-Þ \ ×
     if (cp >= 0x100 && cp <= 0x177) return (cp % 2) == 0;             // Ext-A pairs
     return false;
 }
 
 inline bool is_lower(uint32_t cp) {
     if (cp >= 'a' && cp <= 'z') return true;
-    if (cp >= 0xDF && cp <= 0xFF && cp != 0xF7) return true;          // ß–ÿ \ ÷
+    if (cp >= 0xDF && cp <= 0xFF && cp != 0xF7) return true;          // ß-ÿ \ ÷
     if (cp >= 0x100 && cp <= 0x177) return (cp % 2) == 1;
     return false;
 }

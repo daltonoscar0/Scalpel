@@ -1,7 +1,7 @@
-# rule-based-tss
+# scalpel
 
 Rule-based C++ tokenizer and sentence segmenter.
-Feed it raw text; get back typed tokens grouped into sentences — handling contractions, abbreviations, hyphenation, ellipses, and numbers without any model weights or dependencies.
+Feed it raw text; get back typed tokens grouped into sentences, handling contractions, abbreviations, hyphenation, ellipses, and numbers without any model weights or dependencies.
 
 ```
 Input  →  "Dr. Jones can't visit on Jan. 31st. Amazing!"
@@ -54,7 +54,7 @@ Sentence 2:  [Amazing]  WORD  [!]  PUNCT
 
 ### Why a finite state machine?
 
-Character-by-character FSM processing means a single linear pass over the input with O(1) lookahead. There is no backtracking, no regex engine, and no heap allocation per character — just a state variable, a string buffer, and a switch. This makes boundary cases (e.g. `U.S.` vs `dogs.`) explicit and testable rather than buried in regex alternations.
+Character-by-character FSM processing means a single linear pass over the input with O(1) lookahead. There is no backtracking, no regex engine, and no heap allocation per character, just a state variable, a string buffer, and a switch. This makes boundary cases (e.g. `U.S.` vs `dogs.`) explicit and testable rather than buried in regex alternations.
 
 ### Why separate tokenizer and segmenter?
 
@@ -72,7 +72,7 @@ The tokenizer assigns types (`ABBREVIATION`, `CONTRACTION`, etc.) that the segme
 | `ABBREVIATION` | `Dr.`, `Jan.`, `U.S.` | Word ≤ 3 chars followed by a period; never splits sentences |
 | `CONTRACTION` | `don't`, `I'll`, `can't` | Word + apostrophe + continuation |
 | `HYPHENATED` | `state-of-the-art` | Word segments joined by hyphens |
-| `SENTENCE_END` | — | Explicit marker; can be injected directly into the token stream |
+| `SENTENCE_END` |, | Explicit marker; can be injected directly into the token stream |
 
 ---
 
@@ -203,7 +203,7 @@ Tests failed: 0
 ## Project structure
 
 ```
-rule-based-tss/
+scalpel/
 ├── tokenizer.h/.cpp            # FSM tokenizer — core of the pipeline
 ├── char_classes.h/.cpp         # Character classification (LETTER, DIGIT, PERIOD, etc.)
 ├── token.h                     # Token struct and TokenType enum
@@ -229,7 +229,7 @@ rule-based-tss/
 | `IN_CONTRACTION` | Apostrophe seen in `IN_WORD` | Non-letter (emits `CONTRACTION`) |
 | `IN_HYPHENATED` | Hyphen seen in `IN_WORD` | Non-letter (emits `HYPHENATED`) |
 | `IN_ABBREVIATION` | Period seen in `IN_WORD` with buffer ≤ 3 chars | Non-letter, non-period (emits `ABBREVIATION`) |
-| `POSSIBLE_SENTENCE_END` | Reserved for future lookahead disambiguation | — |
+| `POSSIBLE_SENTENCE_END` | Reserved for future lookahead disambiguation |, |
 
 ---
 
