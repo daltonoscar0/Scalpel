@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 #include <functional>
 
 namespace ga {
@@ -149,7 +150,12 @@ std::vector<std::pair<std::string, CPs>> demutate_core(const CPs& w) {
         }
     }
     // Ecl consonants (prefix always lowercase; base letter keeps its case)
-    if (c0 == 'b' && c1 == 'h' && n >= 3 && utf8::to_lower(w[2]) == 'f') {
+    // to_lower on c1: the Python reference tests w[:2].lower() == "bh", so it
+    // accepts a mixed-case 'bHf', and mutation_fst.h makes that reference the
+    // authority. Matching it is what keeps the two in parity on inputs no
+    // corpus contains. Found by fuzzing.
+    if (c0 == 'b' && utf8::to_lower(c1) == 'h' && n >= 3 &&
+        utf8::to_lower(w[2]) == 'f') {
         push_unique(out, "Ecl", slice(w, 2));               // bh + fear
     } else {
         static const std::pair<char, char> pairs[] = {
@@ -182,7 +188,8 @@ std::vector<std::pair<std::string, CPs>> demutate_core(const CPs& w) {
 
 bool inverse_ok_cp(const std::string& tag, const CPs& base, const CPs& surface);
 
-std::vector<std::pair<std::string, CPs>> demutate_cp(const CPs& w) {
+// Every candidate the analysis tracks produce, before any verification.
+std::vector<std::pair<std::string, CPs>> demutate_candidates_cp(const CPs& w) {
     auto out = demutate_core(w);
     // ALL-CAPS track: match lowercased, recover base by uppercasing
     if (w.size() > 2 && word_is_upper(w))
@@ -196,6 +203,32 @@ std::vector<std::pair<std::string, CPs>> demutate_cp(const CPs& w) {
             if (w[0] == static_cast<CP>(pre) && (utf8::is_upper(w[2]) || pre == 'h'))
                 push_unique(out, tag, slice(w, 2));
     }
+    return out;
+}
+
+std::vector<std::pair<std::string, CPs>> demutate_cp(const CPs& w) {
+    // A candidate that fails its own inverse check is dropped and reported,
+    // not asserted on. This runs over user text: a tokenizer about to cross a
+    // parallel corpus must not die on one word, and handing back a reading
+    // that cannot regenerate its surface would be worse than dropping it.
+    // demutate_strict_cp keeps the hard check, for the test runners.
+    std::vector<std::pair<std::string, CPs>> kept;
+    for (auto& [tag, base] : demutate_candidates_cp(w)) {
+        if (inverse_ok_cp(tag, base, w)) {
+            kept.emplace_back(tag, base);
+            continue;
+        }
+        std::cerr << "mutation_fst: dropped unverifiable reading " << tag
+                  << ":" << str(base) << " for '" << str(w) << "'\n";
+    }
+    return kept;
+}
+
+// As demutate_cp, but a failing inverse check aborts. Checks the unverified
+// candidate set, so the assert can actually fire. The loud path, for tests;
+// never on an input path.
+std::vector<std::pair<std::string, CPs>> demutate_strict_cp(const CPs& w) {
+    auto out = demutate_candidates_cp(w);
     for (auto& [tag, base] : out) {
         (void)tag; (void)base;
         assert(inverse_ok_cp(tag, base, w));
@@ -240,7 +273,11 @@ std::vector<CPs> realisations(const std::string& tag, const CPs& base) {
     if (marker.empty()) return out;
 
     std::vector<CPs> markers{marker};
-    if (base.size() > 1 && word_is_upper(base)) markers.push_back(upper_all(marker));
+    // Not gated on length: the ALL-CAPS analysis track fires on
+    // surface.size() > 2, which a one-letter base still satisfies once a
+    // marker and a hyphen are in front of it ('N-A'), so gating this on the
+    // base length left those readings unverifiable. Found by fuzzing.
+    if (word_is_upper(base)) markers.push_back(upper_all(marker));
 
     CP m0 = utf8::to_lower(marker[0]);
     bool hyphenable = marker.size() == 1 &&
@@ -362,6 +399,20 @@ std::string mutate(const std::string& tag, const std::string& word) {
 std::vector<Analysis> demutate(const std::string& w) {
     std::vector<Analysis> out;
     for (auto& [tag, base] : demutate_cp(cps(w)))
+        out.emplace_back(tag, str(base));
+    return out;
+}
+
+std::vector<Analysis> demutate_candidates(const std::string& w) {
+    std::vector<Analysis> out;
+    for (auto& [tag, base] : demutate_candidates_cp(cps(w)))
+        out.emplace_back(tag, str(base));
+    return out;
+}
+
+std::vector<Analysis> demutate_strict(const std::string& w) {
+    std::vector<Analysis> out;
+    for (auto& [tag, base] : demutate_strict_cp(cps(w)))
         out.emplace_back(tag, str(base));
     return out;
 }

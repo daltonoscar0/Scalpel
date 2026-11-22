@@ -15,7 +15,7 @@
 //   tests/attested_mutations.tsv      17200 / 17201  mined from UD Irish-IDT.
 //                                     The one failure is 'fíor-', a truncated
 //                                     compound fragment carrying no mutation.
-//   tests/orthographic_variants.tsv   30 / 30 positive, 10 / 10 negative.
+//   tests/orthographic_variants.tsv   35 / 35 positive, 10 / 10 negative.
 //                                     Constructed spelling edge cases from
 //                                     docs/mutation_case_matrix.md; its split
 //                                     column holds the expectation rather
@@ -50,8 +50,15 @@ std::string eclipse(const std::string& w);
 std::string h_prefix(const std::string& w);
 std::string t_prefix(const std::string& w);
 
-// Analysis: candidate (tag, base) pairs, excluding identity.
+// Analysis: candidate (tag, base) pairs, excluding identity. A candidate
+// that fails its own inverse check is dropped and reported on stderr, never
+// asserted on: this is an input path and one bad word must not kill a run.
 std::vector<Analysis> demutate(const std::string& w);
+// As demutate, but a failing inverse check aborts. For test runners only.
+std::vector<Analysis> demutate_strict(const std::string& w);
+// Candidates before verification, so a caller can tell a reading that was
+// never proposed from one proposed and then dropped. For the fuzz harness.
+std::vector<Analysis> demutate_candidates(const std::string& w);
 // As demutate, plus the ("none", w) reading in first position.
 std::vector<Analysis> analyze(const std::string& w);
 

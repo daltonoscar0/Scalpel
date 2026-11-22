@@ -2,7 +2,7 @@
 // Includes the parity runs over the two shared test files used by the
 // Python reference; pass counts must match the reference exactly:
 //   tests/attested_mutations.tsv      17200/17201   (mined from UD Irish-IDT)
-//   tests/orthographic_variants.tsv   30/30 positive, 10/10 negative
+//   tests/orthographic_variants.tsv   35/35 positive, 10/10 negative
 //                                     (constructed spelling edge cases)
 //
 // Build:
@@ -162,7 +162,7 @@ static void attested_parity(const std::string& tsv) {
         std::getline(ss, upos, '\t');    std::getline(ss, tag, '\t');
         std::getline(ss, split, '\t');
         ++total;
-        for (auto& [t, base] : ga::demutate(surface))
+        for (auto& [t, base] : ga::demutate_strict(surface))
             if (t == tag && ga::inverse_ok(t, base, surface)) { ++pass; break; }
     }
     std::cout << "attested: " << pass << "/" << total << " pass\n";
@@ -189,7 +189,7 @@ static void variants_parity(const std::string& tsv) {
         std::getline(ss, surface, '\t'); std::getline(ss, lemma, '\t');
         std::getline(ss, upos, '\t');    std::getline(ss, tag, '\t');
         std::getline(ss, split, '\t');
-        auto readings = ga::demutate(surface);
+        auto readings = ga::demutate_strict(surface);
         if (split == "negative") {
             ++neg;
             if (readings.empty()) ++neg_pass;

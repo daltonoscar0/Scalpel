@@ -5,6 +5,7 @@
 //
 // Commands (tab separated):
 //   A <word>                  analysis: every (tag, base) and its inverse_ok
+//   C <word>                  candidates before verification, same format
 //   G <tag> <base>            generation: mutate(tag, base)
 //   I <tag> <base> <surface>  inverse_ok(tag, base, surface)
 //
@@ -49,6 +50,16 @@ int main() {
             std::cout << "A\t" << f[1] << "\t";
             bool first = true;
             for (const auto& [tag, base] : ga::demutate(f[1])) {
+                if (!first) std::cout << " ";
+                first = false;
+                std::cout << tag << ":" << base << ":"
+                          << (ga::inverse_ok(tag, base, f[1]) ? 1 : 0);
+            }
+            std::cout << "\n";
+        } else if (f[0] == "C" && f.size() >= 2) {
+            std::cout << "C\t" << f[1] << "\t";
+            bool first = true;
+            for (const auto& [tag, base] : ga::demutate_candidates(f[1])) {
                 if (!first) std::cout << " ";
                 first = false;
                 std::cout << tag << ":" << base << ":"
