@@ -208,18 +208,66 @@ bool ends_with(const CPs& s, const CPs& suffix) {
            std::equal(suffix.rbegin(), suffix.rend(), s.rbegin());
 }
 
-bool inverse_ok_cp(const std::string& tag, const CPs& base, const CPs& surface) {
-    CPs m = mutate_cp(tag, base);
-    if (m == surface) return true;
-    if (surface.size() > 2 && surface[1] == '-' &&
-        (surface[0] == 'n' || surface[0] == 'h' || surface[0] == 't')) {
-        CPs dehyph{surface[0]};
-        dehyph.insert(dehyph.end(), surface.begin() + 2, surface.end());
-        if (m == dehyph) return true;
+// Every surface spelling of mutate(tag, base) that analysis accepts. Mirrors
+// src/mutations.py:realisations exactly.
+//
+// Generation stays strict Caighdeán; this is the wider set the analysis side
+// has always taken, written down so a reading can be checked against it
+// instead of against a single string. Enumerating it is what lets 'n-APP' be
+// verified: the canonical spelling is 'NAPP', because an all-caps stem
+// uppercases the inserted marker, and no pairwise comparison gets from one to
+// the other in one step.
+//
+// Deliberately no wider than analysis: the uppercase marker is offered only
+// when the stem is ALL-CAPS, and the hyphen only for n/h/t before a vowel.
+// inverse_ok is also the pass criterion for the attested file, so loosening
+// it further would quietly change that count.
+std::vector<CPs> realisations(const std::string& tag, const CPs& base) {
+    std::vector<CPs> out{mutate_cp(tag, base)};
+    auto add = [&out](const CPs& c) {
+        for (const auto& e : out)
+            if (e == c) return;
+        out.push_back(c);
+    };
+    // Lenition has no hyphen variant, and its all-caps case is already
+    // exact: mutate_cp uppercases the inserted h with everything else.
+    if (tag == "Len") return out;
+
+    CPs plain = plain_mutate(tag, base);
+    if (plain == base || !ends_with(plain, base)) return out;
+    CPs marker(plain.begin(), plain.begin() + (plain.size() - base.size()));
+    while (!marker.empty() && marker.back() == '-') marker.pop_back();
+    if (marker.empty()) return out;
+
+    std::vector<CPs> markers{marker};
+    if (base.size() > 1 && word_is_upper(base)) markers.push_back(upper_all(marker));
+
+    CP m0 = utf8::to_lower(marker[0]);
+    bool hyphenable = marker.size() == 1 &&
+                      (m0 == 'n' || m0 == 'h' || m0 == 't') &&
+                      !base.empty() && is_vowel(base[0]);
+
+    for (const auto& mk : markers) {
+        CPs bare = mk;
+        bare.insert(bare.end(), base.begin(), base.end());
+        add(bare);
+        if (hyphenable) {
+            CPs hy = mk;
+            hy.push_back('-');
+            hy.insert(hy.end(), base.begin(), base.end());
+            add(hy);
+        }
     }
-    // case-flexible mutation material (BHFUIL vs tAONTAS conventions);
-    // base letters must be unchanged
-    if (lower_all(m) == lower_all(surface)) {
+    return out;
+}
+
+bool inverse_ok_cp(const std::string& tag, const CPs& base, const CPs& surface) {
+    for (const auto& r : realisations(tag, base))
+        if (r == surface) return true;
+    // Case-flexible fallback for the inserted material, kept from the
+    // original: the base letters must survive untouched and only what the
+    // mutation added may vary.
+    if (lower_all(mutate_cp(tag, base)) == lower_all(surface)) {
         if (tag == "Len")
             return !base.empty() && surface.size() >= 2 &&
                    surface[0] == base[0] &&

@@ -1,13 +1,17 @@
 // Tests for the mutation FST layer, in Scalpel's house test style.
-// Includes the attested-form parity run: reading the identical
-// tests/attested_mutations.tsv used by the Python reference; pass counts
-// must match the reference exactly (17200/17201 as of session 2).
+// Includes the parity runs over the two shared test files used by the
+// Python reference; pass counts must match the reference exactly:
+//   tests/attested_mutations.tsv      17200/17201   (mined from UD Irish-IDT)
+//   tests/orthographic_variants.tsv   30/30 positive, 10/10 negative
+//                                     (constructed spelling edge cases)
 //
 // Build:
 //   g++ -std=c++17 -o mutation_tests mutation_tests.cpp mutation_fst.cpp \
 //       tokenizer.cpp char_classes.cpp -I.  (one line)
 // Run:
-//   ./mutation_tests path/to/attested_mutations.tsv
+//   ./mutation_tests path/to/attested_mutations.tsv \
+//       [path/to/orthographic_variants.tsv]
+// The second path defaults to a file of that name beside the first.
 #include "mutation_fst.h"
 #include "tokenizer.h"
 
@@ -136,6 +140,12 @@ static void integration_test() {
           "tokenize Irish -> analyze: bhfear survives and yields Ecl:fear");
 }
 
+// Path of a file with the same directory as another.
+static std::string sibling(const std::string& path, const std::string& name) {
+    auto slash = path.find_last_of('/');
+    return slash == std::string::npos ? name : path.substr(0, slash + 1) + name;
+}
+
 static void attested_parity(const std::string& tsv) {
     std::ifstream in(tsv);
     if (!in) {
@@ -161,12 +171,56 @@ static void attested_parity(const std::string& tsv) {
           "attested-form parity with Python reference (17200/17201)");
 }
 
+// The constructed spelling cases, reported separately from the treebank
+// rows. Held to 100%: a failure here is a bug, not an annotation judgement.
+// The split column carries the expectation, 'edge' or 'negative'.
+static void variants_parity(const std::string& tsv) {
+    std::ifstream in(tsv);
+    if (!in) {
+        std::cout << "[SKIP] variants TSV not found: " << tsv << "\n";
+        return;
+    }
+    long pos = 0, pos_pass = 0, neg = 0, neg_pass = 0;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::stringstream ss(line);
+        std::string surface, lemma, upos, tag, split;
+        std::getline(ss, surface, '\t'); std::getline(ss, lemma, '\t');
+        std::getline(ss, upos, '\t');    std::getline(ss, tag, '\t');
+        std::getline(ss, split, '\t');
+        auto readings = ga::demutate(surface);
+        if (split == "negative") {
+            ++neg;
+            if (readings.empty()) ++neg_pass;
+        } else {
+            ++pos;
+            for (auto& [t, base] : readings)
+                if (t == tag && base == lemma &&
+                    ga::inverse_ok(t, base, surface)) { ++pos_pass; break; }
+        }
+    }
+    std::cout << "variants: " << pos_pass << "/" << pos << " positive, "
+              << neg_pass << "/" << neg << " negative\n";
+    check(pos > 0 && pos_pass == pos,
+          "orthographic variants: every positive case analyses and inverts");
+    check(neg > 0 && neg_pass == neg,
+          "orthographic variants: no negative case gains a reading");
+}
+
 int main(int argc, char** argv) {
     generation_tests();
     analysis_tests();
     parity_tests();
     integration_test();
-    attested_parity(argc > 1 ? argv[1] : "../../tests/attested_mutations.tsv");
+    // Both parity files. Paths may be given on the command line, attested
+    // first; otherwise they are looked for next to each other.
+    std::string attested = argc > 1 ? argv[1]
+        : "../seanchai/tests/attested_mutations.tsv";
+    std::string variants = argc > 2 ? argv[2]
+        : sibling(attested, "orthographic_variants.tsv");
+    attested_parity(attested);
+    variants_parity(variants);
     std::cout << "\nTests run:" << run << "\nTests failed: " << failed << "\n";
     return failed == 0 ? 0 : 1;
 }

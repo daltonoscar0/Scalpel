@@ -7,9 +7,22 @@
 // composing with pre-existing rules (see ARCHITECTURE.md, revised).
 //
 // Semantics are pinned by the Python reference implementation
-// (src/mutations.py) and by the shared attested-form test file
-// (tests/attested_mutations.tsv) mined from UD Irish-IDT; the C++ test
-// runner must reproduce the Python pass count exactly.
+// (src/mutations.py) and by two shared test files; the C++ test runner must
+// reproduce the Python pass counts on both exactly. Both live in the
+// seanchai repo (daltonoscar0/Morpheme-Aware-Language-Modeling-for-Irish),
+// which is where those relative paths are rooted:
+//
+//   tests/attested_mutations.tsv      17200 / 17201  mined from UD Irish-IDT.
+//                                     The one failure is 'fíor-', a truncated
+//                                     compound fragment carrying no mutation.
+//   tests/orthographic_variants.tsv   30 / 30 positive, 10 / 10 negative.
+//                                     Constructed spelling edge cases from
+//                                     docs/mutation_case_matrix.md; its split
+//                                     column holds the expectation rather
+//                                     than a treebank split.
+//
+// The attested file's row count is asserted, so new cases go in the variants
+// file and never in it.
 //
 // Design contracts (identical to the reference):
 //   - pure application layer: no triggers, no lexicon, no heuristics
