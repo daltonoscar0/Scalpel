@@ -5,6 +5,9 @@ tss_main
 tss_tests
 tss_tests_new
 tokenizer_tests
+mutation_probe
+mutation_probe_nd
+mutation_tests
 tokenizer_tests_new
 sentence_segmenter_tests
 sentence_segmenter_tests_new
@@ -15,3 +18,12 @@ okenizer_tests
 
 # macOS
 .DS_Store
+CLAUDE.md
+AGENTS.md
+.claude/
+.agentnotes/
+.cursor/
+.mcp.json
+tasks/lessons.md
+tasks/todo.md
+Scalpel/

@@ -3,6 +3,7 @@
 #include "token.h"
 #include <string>
 #include <vector>
+#include "utf8.h"
 
 Tokenizer::Tokenizer(){
     state_ = State::START;
@@ -19,32 +20,44 @@ void Tokenizer::reset(){
 std::vector<Token> Tokenizer::tokenize(std::string input){
     std::vector<Token> tokens;
 
-    for (int i=0; i<input.length(); i++){
-        process_char(input[i], i, tokens);
+    // Iterate codepoints, not bytes: Irish text is full of multibyte
+    // vowels; indices remain byte offsets of codepoint starts.
+    size_t i = 0, len = 0;
+    while (i < input.size()){
+        uint32_t cp = utf8::decode(input, i, len);
+        process_char(cp, static_cast<int>(i), tokens);
+        i += len;
     }
 
     if (buffer_ != " "){
-        emit_token(tokens, input.length() - 1, TokenType::WORD);
+        // Flush with the type implied by the current state (previously this
+        // always emitted WORD, mislabelling trailing numbers/punct).
+        TokenType t = TokenType::WORD;
+        if (state_ == State::IN_NUMBER) t = TokenType::NUMBER;
+        else if (state_ == State::IN_PUNCT) t = TokenType::PUNCT;
+        else if (state_ == State::IN_CONTRACTION) t = TokenType::CONTRACTION;
+        else if (state_ == State::IN_ABBREVIATION) t = TokenType::ABBREVIATION;
+        emit_token(tokens, input.length() - 1, t);
     } 
 
     return tokens;
 }
 
-    void Tokenizer::process_char(char c, int index, std::vector<Token>& output){
+    void Tokenizer::process_char(uint32_t c, int index, std::vector<Token>& output){
         CharClassifier classifier;
-        CharClass cc = classifier.classify_char(c);
+        CharClass cc = classifier.classify_codepoint(c);
 
         if (state_ == State::START){
             if(cc == CharClass::LETTER){
-                buffer_ = c;
+                buffer_ = ""; utf8::append(buffer_, c);
                 token_start_ = index;
                 state_ = State::IN_WORD;
             } else if (cc == CharClass::DIGIT){
-                buffer_ = c;
+                buffer_ = ""; utf8::append(buffer_, c);
                 token_start_ = index;
                 state_ = State::IN_NUMBER;
             } else if (cc == CharClass::PUNCT || cc ==CharClass::PERIOD){
-                buffer_ = c;
+                buffer_ = ""; utf8::append(buffer_, c);
                 token_start_ = index;
                 state_ = State::IN_PUNCT;
             }
@@ -52,15 +65,15 @@ std::vector<Token> Tokenizer::tokenize(std::string input){
 
         else if (state_ == State::IN_WORD){
             if (cc == CharClass::LETTER){
-                buffer_ = buffer_ + c;
+                utf8::append(buffer_, c);
             } else if (cc == CharClass::APOSTROPHE){
-                buffer_ = buffer_ + c;
+                utf8::append(buffer_, c);
                 state_ = State::IN_CONTRACTION;
             } else if (cc == CharClass::HYPHEN){
-                buffer_ = buffer_ + c;
+                utf8::append(buffer_, c);
                 state_ = State::IN_HYPHENATED;
             } else if (cc == CharClass::PERIOD && buffer_.length() <= 3){
-                buffer_ = buffer_ + c;
+                utf8::append(buffer_, c);
                 state_ = State::IN_ABBREVIATION;
             } else {
                 emit_token(output, index - 1, TokenType::WORD);
@@ -72,7 +85,7 @@ std::vector<Token> Tokenizer::tokenize(std::string input){
 
         else if (state_ == State::IN_NUMBER){
             if (cc == CharClass::DIGIT){
-                buffer_ = buffer_ + c;
+                utf8::append(buffer_, c);
             } else {
                 emit_token(output, index - 1, TokenType::NUMBER);
                 buffer_ = " ";
@@ -83,7 +96,7 @@ std::vector<Token> Tokenizer::tokenize(std::string input){
 
         else if (state_ == State::IN_PUNCT){
             if (cc == CharClass::PUNCT || cc == CharClass::PERIOD){
-                buffer_ = buffer_ + c;
+                utf8::append(buffer_, c);
             } else {
                 emit_token(output, index - 1, TokenType::PUNCT);
                 buffer_ = " ";
@@ -94,7 +107,7 @@ std::vector<Token> Tokenizer::tokenize(std::string input){
 
         else if (state_ == State::IN_CONTRACTION){
             if (cc == CharClass::LETTER){
-                buffer_ = buffer_ + c;
+                utf8::append(buffer_, c);
             } else {
                 emit_token(output, index - 1, TokenType::CONTRACTION);
                 buffer_ = " ";
@@ -105,7 +118,7 @@ std::vector<Token> Tokenizer::tokenize(std::string input){
 
         else if (state_ == State::IN_ABBREVIATION){
             if (cc == CharClass::LETTER || cc == CharClass::PERIOD){
-                buffer_ = buffer_ + c;
+                utf8::append(buffer_, c);
             } else {
                 emit_token(output, index - 1, TokenType::ABBREVIATION);
                 buffer_ = " ";
@@ -116,7 +129,7 @@ std::vector<Token> Tokenizer::tokenize(std::string input){
 
         else if (state_ == State::IN_HYPHENATED){
             if (cc == CharClass::LETTER){
-                buffer_ = buffer_ + c;
+                utf8::append(buffer_, c);
                 state_ = State::IN_WORD;
             } else {
                 emit_token(output, index - 1, TokenType::HYPHENATED);
