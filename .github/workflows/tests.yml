@@ -1,0 +1,74 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compiler version
+        run: g++ --version
+
+      # The repo has no build system by design ("No external libraries. No
+      # build system required."), so these mirror the g++ commands in the README.
+      - name: Build main program
+        run: |
+          g++ -std=c++11 -Wall -o tss \
+            tss_main.cpp \
+            tokenizer.cpp \
+            char_classes.cpp \
+            sentence_segmenter.cpp
+
+      - name: Build tokenizer tests
+        run: |
+          g++ -std=c++11 -Wall -o tokenizer_tests \
+            tokenizer_tests.cpp \
+            tokenizer.cpp \
+            char_classes.cpp \
+            -I.
+
+      - name: Build sentence segmenter tests
+        run: |
+          g++ -std=c++11 -Wall -o sentence_segmenter_tests \
+            sentence_segmenter_tests.cpp \
+            sentence_segmenter.cpp \
+            -I.
+
+      - name: Build integration tests
+        run: |
+          g++ -std=c++11 -Wall -o tss_tests \
+            tss_tests.cpp \
+            tokenizer.cpp \
+            char_classes.cpp \
+            -I.
+
+      # mutation_fst.cpp and mutation_tests.cpp use structured bindings, which
+      # are C++17. clang accepts them under -std=c++11 with a warning; gcc does not.
+      - name: Build Irish mutation tests
+        run: |
+          g++ -std=c++17 -Wall -o mutation_tests \
+            mutation_tests.cpp \
+            mutation_fst.cpp \
+            tokenizer.cpp \
+            char_classes.cpp \
+            -I.
+
+      - name: Run tokenizer tests
+        run: ./tokenizer_tests
+
+      - name: Run sentence segmenter tests
+        run: ./sentence_segmenter_tests
+
+      - name: Run integration tests
+        run: ./tss_tests
+
+      # Note: the attested-form check inside this suite looks for
+      # tests/attested_mutations.tsv, which is not in this repo. It reports
+      # [SKIP] and does not fail the run.
+      - name: Run Irish mutation tests
+        run: ./mutation_tests

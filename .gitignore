@@ -9,9 +9,15 @@ tokenizer_tests_new
 sentence_segmenter_tests
 sentence_segmenter_tests_new
 okenizer_tests
+mutation_tests
 
 # Object files
 *.o
+*.d
+*.obj
+
+# Build output
+build/
 
 # macOS
 .DS_Store

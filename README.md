@@ -1,7 +1,11 @@
-# scalpel
+# Scalpel
+
+[![tests](https://github.com/daltonoscar0/Scalpel/actions/workflows/tests.yml/badge.svg)](https://github.com/daltonoscar0/Scalpel/actions/workflows/tests.yml)
 
 Rule-based C++ tokenizer and sentence segmenter.
 Feed it raw text; get back typed tokens grouped into sentences, handling contractions, abbreviations, hyphenation, ellipses, and numbers without any model weights or dependencies.
+
+An optional [Irish initial-mutation layer](#irish-initial-mutations) adds séimhiú, urú, h-prefix and t-prefix generation and analysis on top of UTF-8 aware tokenization.
 
 ```
 Input  →  "Dr. Jones can't visit on Jan. 31st. Amazing!"
@@ -127,6 +131,20 @@ g++ -std=c++11 -o tss_tests \
     -I.
 ```
 
+### Irish mutation test suite
+
+`mutation_fst.cpp` and `mutation_tests.cpp` use structured bindings, so this
+suite needs C++17 (the rest of the codebase stays C++11):
+
+```bash
+g++ -std=c++17 -o mutation_tests \
+    mutation_tests.cpp \
+    mutation_fst.cpp \
+    tokenizer.cpp \
+    char_classes.cpp \
+    -I.
+```
+
 ---
 
 ## Usage
@@ -162,6 +180,82 @@ Pipe text directly:
 ```bash
 echo "Dr. Meeden doesn't like state-of-the-art models. Does she?" | ./tss
 ```
+
+---
+
+## Irish initial mutations
+
+`mutation_fst.h/.cpp` add an optional layer for the four Irish initial
+mutations. The tokenizer's FSM is a *recognizer*; this layer is Scalpel's
+string-rewriting (transducer) side, so it supplies its own FST machinery rather
+than composing with the existing tokenizer rules.
+
+| Tag | Mutation | Example |
+|---|---|---|
+| `Len` | séimhiú (lenition) | `fear` → `fhear` |
+| `Ecl` | urú (eclipsis) | `fear` → `bhfear` |
+| `HPref` | h-prefix | `aois` → `haois` |
+| `TPref` | t-prefix | `Aontas` → `tAontas`, `aontas` → `t-aontas` |
+
+Both directions are available:
+
+```cpp
+#include "mutation_fst.h"
+
+ga::mutate("Ecl", "fear");     // generation → "bhfear"
+ga::demutate("bhfear");        // analysis   → {("Len","bfear"), ("Ecl","fear")}
+ga::analyze("bhfear");         // as above, plus ("none","bhfear") first
+```
+
+Note the second analysis candidate: `demutate` is deliberately
+over-generating, so `bhfear` also yields the (spurious) lenition reading
+`Len:bfear`. Filtering candidates against a lexicon is the caller's job.
+
+`lenite`, `eclipse`, `h_prefix` and `t_prefix` expose the individual rules.
+`fst_mutate` is an arc-based transducer path that must agree with `mutate` on
+every input; the test suite enforces that parity. `inverse_ok` is the shared
+pass criterion used against the reference implementation.
+
+Design contracts, quoted from the header:
+
+- **Pure application layer** — no triggers, no lexicon, no heuristics. Deciding
+  *when* a mutation applies is the caller's job; this layer only applies it.
+- **Vacuous application** — mutating a non-target returns the word unchanged.
+- **Over-generating analysis** — `demutate` returns candidates and excludes the
+  identity reading; adding it back is the caller's choice (or use `analyze`).
+- **Caighdeán on output** — generation emits standard orthography. Analysis is
+  more permissive and additionally accepts hyphen-before-capital (`n-Ealaíon`),
+  hyphenated h (`h-aoise`), all-caps (`BHFUIL`), and signage-style lowercase
+  prefixes on capitals (`tAONTAS`).
+
+Tokenization became UTF-8 codepoint-aware (`utf8.h`) in the same change, so
+mutated forms survive tokenization intact: the suite checks that `bhfear`
+tokenizes as one token and still analyzes to `Ecl:fear`.
+
+### Status and provenance
+
+The header states that the semantics are pinned by a Python reference
+implementation (`src/mutations.py`) and a shared attested-form fixture
+(`tests/attested_mutations.tsv`) mined from UD Irish-IDT, with the C++ runner
+required to reproduce the Python pass count exactly. `mutation_tests.cpp`
+records that contract as 17200/17201 attested forms.
+
+**Neither the Python reference nor the TSV fixture is in this repository.**
+The attested-form check therefore reports
+`[SKIP] attested TSV not found: ../../tests/attested_mutations.tsv`
+and the 17200/17201 figure is not reproduced by the tests here. The suite's
+other 11 checks run and pass. Pass a path to supply the fixture yourself:
+
+```bash
+./mutation_tests /path/to/attested_mutations.tsv
+```
+
+TODO(oscar): confirm whether `Morpheme-Aware-Language-Modeling-for-Irish` or
+this layer is the source of truth, and either vendor the fixture here or point
+this section at the other repository.
+
+TODO(oscar): `mutation_fst.h` refers readers to `ARCHITECTURE.md`, which is not
+in this repository.
 
 ---
 
@@ -209,10 +303,13 @@ scalpel/
 ├── token.h                     # Token struct and TokenType enum
 ├── sentence_segmenter.h/.cpp   # Sentence boundary detection
 ├── utils.h                     # String utility declarations
+├── utf8.h                      # UTF-8 codepoint helpers
+├── mutation_fst.h/.cpp         # Irish initial mutations (séimhiú, urú, h-/t-prefix)
 ├── tss_main.cpp                # CLI entry point (stdin → labelled sentences)
 ├── tokenizer_tests.cpp         # Tokenizer unit tests
 ├── sentence_segmenter_tests.cpp# Sentence segmenter unit tests
 ├── tss_tests.cpp               # Integration tests (tokenizer end-to-end)
+├── mutation_tests.cpp          # Irish mutation tests (C++17)
 └── test_input.txt              # Sample input file
 ```
 
@@ -238,3 +335,9 @@ scalpel/
 - **Abbreviation threshold:** the `buffer_.length() <= 3` check in `tokenizer.cpp` controls what counts as an abbreviation candidate. Raise it to catch longer abbreviations like `Prof.` (4 chars before the period).
 - **Known abbreviations list:** `sentence_segmenter.h` has an `abbreviations` vector stub ready to hold an explicit list for finer-grained sentence boundary control.
 - **Additional token types:** add a new `TokenType` in `token.h`, a matching `State` in `tokenizer.h`, and handle the transition in `process_char`.
+
+---
+
+## License
+
+MIT. See [LICENSE](LICENSE).
