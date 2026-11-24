@@ -7,6 +7,7 @@ tss_tests_new
 tokenizer_tests
 mutation_probe
 mutation_probe_nd
+mutation_tests
 tokenizer_tests_new
 sentence_segmenter_tests
 sentence_segmenter_tests_new
