@@ -4,7 +4,7 @@
 //
 // This is Scalpel's string-rewriting (transducer) layer, the tokenizer's
 // FSM is a recognizer, so this module adds the FST machinery rather than
-// composing with pre-existing rules (see ARCHITECTURE.md, revised).
+// composing with pre-existing rules.
 //
 // Semantics are pinned by the Python reference implementation
 // (src/mutations.py) and by two shared test files; the C++ test runner must

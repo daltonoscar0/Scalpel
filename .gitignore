@@ -27,3 +27,10 @@ AGENTS.md
 tasks/lessons.md
 tasks/todo.md
 Scalpel/
+
+*.d
+*.obj
+
+# Build output
+build/
+
